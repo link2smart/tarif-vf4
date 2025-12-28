@@ -100,6 +100,7 @@
             const [loginError, setLoginError] = useState('');
             const [syncStatus, setSyncStatus] = useState(null); 
             const [syncLog, setSyncLog] = useState('');
+            const fileInputRef = useRef(null); // Pour l'import de config
 
             // --- CHARGEMENT PERSISTANCE ---
             useEffect(() => {
@@ -118,6 +119,44 @@
             useEffect(() => { localStorage.setItem('cmgp_dbx_ft', JSON.stringify(fichesTechniques)); }, [fichesTechniques]);
             useEffect(() => { localStorage.setItem('cmgp_dbx_config', JSON.stringify(dbxConfig)); }, [dbxConfig]);
             useEffect(() => { localStorage.setItem('cmgp_dbx_sync_info', JSON.stringify(syncInfo)); }, [syncInfo]);
+
+            // --- FONCTIONS SAUVEGARDE / RESTAURATION ---
+            const handleExportConfig = () => {
+                const data = {
+                    tarifs,
+                    fichesTechniques,
+                    dbxConfig,
+                    syncInfo,
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cmgp_config_backup_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            const handleImportConfig = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data.tarifs) setTarifs(data.tarifs);
+                        if (data.fichesTechniques) setFichesTechniques(data.fichesTechniques);
+                        if (data.dbxConfig) setDbxConfig(data.dbxConfig);
+                        if (data.syncInfo) setSyncInfo(data.syncInfo);
+                        alert("Configuration et données restaurées avec succès !");
+                    } catch (error) {
+                        alert("Erreur lors de la lecture du fichier de sauvegarde.");
+                    }
+                };
+                reader.readAsText(file);
+            };
 
             // --- LOGIQUE METIER IA & PARSING ---
             const analyzeTarifPDF = async (blob) => {
@@ -142,14 +181,24 @@
                         });
                         
                         if (result.candidates && result.candidates[0].content) {
-                            const data = JSON.parse(result.candidates[0].content.parts[0].text);
-                            if (data.products) allProducts.push(...data.products);
+                            let text = result.candidates[0].content.parts[0].text;
+                            // NETTOYAGE : Suppression des balises Markdown ```json et ```
+                            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                            
+                            try {
+                                const data = JSON.parse(text);
+                                if (data.products && Array.isArray(data.products)) {
+                                    allProducts.push(...data.products);
+                                }
+                            } catch(jsonErr) {
+                                console.warn("Erreur structure JSON brute:", text);
+                            }
                         }
                     }
                     return allProducts;
                 } catch (e) {
                     console.error("Erreur lecture PDF ou IA", e);
-                    return []; // Retourne tableau vide si erreur, pour ne pas bloquer le processus
+                    return []; 
                 }
             };
 
@@ -175,16 +224,17 @@
                         const currentTarifIds = tarifs.map(t => t.id);
                         const validEntryIds = [];
 
-                        // Tri pour traiter les fichiers récents en priorité ? Non, on scanne tout
                         for (const entry of listTarifs.entries) {
-                            // On vérifie que c'est un fichier PDF
                             if (entry['.tag'] !== 'file' || !entry.name.toLowerCase().endsWith('.pdf')) continue;
                             
                             validEntryIds.push(entry.id);
                             const existing = tarifs.find(t => t.id === entry.id);
 
                             // CONDITION DE MISE A JOUR : Nouveau ou Date modifiée
-                            if (!existing || existing.server_modified !== entry.server_modified) {
+                            // NOTE: On peut forcer la réanalyse si existing.products.length === 0 pour corriger les erreurs passées
+                            const needsUpdate = !existing || existing.server_modified !== entry.server_modified || (existing.products && existing.products.length === 0);
+
+                            if (needsUpdate) {
                                 setSyncLog(`Traitement : ${entry.name}...`);
                                 
                                 try {
@@ -198,7 +248,9 @@
                                     const products = await analyzeTarifPDF(blob);
                                     
                                     if (products.length === 0) {
-                                        setSyncLog(`⚠️ Aucun produit trouvé dans ${entry.name} (image floue ou erreur IA)`);
+                                        setSyncLog(`⚠️ 0 produits trouvés dans ${entry.name}. Vérifiez le format.`);
+                                    } else {
+                                        setSyncLog(`✅ ${products.length} produits extraits de ${entry.name}`);
                                     }
 
                                     const newDoc = {
@@ -213,15 +265,10 @@
                                     setTarifs(prev => [...prev.filter(p => p.id !== entry.id), newDoc]);
                                     newRecentFiles.push({ name: entry.name, type: 'tarif', date: new Date().toLocaleTimeString() });
                                     updatesCount++;
-                                    setSyncLog(`✅ Succès : ${entry.name} (${products.length} articles)`);
 
                                 } catch (fileError) {
                                     setSyncLog(`❌ ÉCHEC fichier ${entry.name} : ${fileError.message}`);
-                                    // On continue la boucle malgré l'erreur sur ce fichier
                                 }
-                            } else {
-                                // Fichier déjà à jour
-                                // setSyncLog(`Skipped (à jour): ${entry.name}`);
                             }
                         }
                         // Nettoyage des orphelins (fichiers supprimés de Dropbox)
@@ -426,6 +473,20 @@
                                                 3. Dans l'onglet "Permissions", cochez <code>files.content.read</code>.<br/>
                                                 4. Dans l'onglet "Settings", générez un "Generated Access Token".
                                             </div>
+                                            
+                                            {/* Zone Export / Import pour migration */}
+                                            <div className="bg-blue-50 text-blue-900 p-4 rounded-xl text-xs border border-blue-100 flex justify-between items-center">
+                                                <div>
+                                                    <strong className="block">Sauvegarder / Restaurer</strong>
+                                                    <span className="opacity-75">Pour migrer vers un autre hébergement (ou Local)</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={handleExportConfig} className="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 font-bold shadow-sm flex items-center gap-1"><Icon name="Download" size={14}/> Exporter</button>
+                                                    <button onClick={() => fileInputRef.current.click()} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm flex items-center gap-1"><Icon name="Upload" size={14}/> Importer</button>
+                                                    <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportConfig} />
+                                                </div>
+                                            </div>
+
                                             <div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Token d'Accès Dropbox</label><input type="password" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm" placeholder="sl.BHz..." value={dbxConfig.token} onChange={e => setDbxConfig({...dbxConfig, token: e.target.value})}/></div>
                                             <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Dossier Tarifs</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="/Tarifs" value={dbxConfig.pathTarifs} onChange={e => setDbxConfig({...dbxConfig, pathTarifs: e.target.value})}/></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-2">Dossier Fiches</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="/Fiches" value={dbxConfig.pathFT} onChange={e => setDbxConfig({...dbxConfig, pathFT: e.target.value})}/></div></div>
                                             <div className="pt-4"><button onClick={() => { alert('Configuration sauvegardée !'); setAdminTab('sync'); }} className="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-900">Sauvegarder</button></div>
