@@ -660,6 +660,36 @@
 
             if (view === 'login') return (
                 <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+                    
+                    {/* MODAL RESTAURATION (Première Connexion) - PLACÉE ICI POUR ETRE RENDUE */}
+                    {showRestoreModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full relative">
+                                <button onClick={() => setShowRestoreModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icon name="X"/></button>
+                                <div className="text-center mb-6">
+                                    <div className="inline-flex p-3 bg-indigo-100 text-indigo-600 rounded-full mb-3"><Icon name="DownloadCloud" size={24}/></div>
+                                    <h2 className="text-xl font-bold">Restauration Cloud</h2>
+                                    <p className="text-slate-500 text-sm mt-2">Pour synchroniser cet appareil, entrez le Token Dropbox de l'administrateur.</p>
+                                </div>
+                                <input 
+                                    type="password" 
+                                    placeholder="Token Dropbox (sl.BHz...)" 
+                                    className="w-full p-3 border rounded-xl mb-4 text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-500" 
+                                    value={restoreToken} 
+                                    onChange={e => setRestoreToken(e.target.value)} 
+                                />
+                                <button 
+                                    onClick={handleFirstConnection} 
+                                    className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                                    disabled={syncStatus === 'working'}
+                                >
+                                    {syncStatus === 'working' ? <Icon name="Loader2" className="animate-spin"/> : <Icon name="CheckCircle"/>}
+                                    Valider et Restaurer
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="w-full max-w-md p-8 bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 animate-fade">
                         <div className="text-center mb-8">
                             <div className="inline-flex p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200 mb-4"><Icon name="Database" size={32} className="text-white"/></div>
@@ -698,31 +728,14 @@
                         </div>
                     )}
 
-                    {/* MODAL RESTAURATION (Première Connexion) */}
-                    {showRestoreModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-fade">
-                            <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full relative">
-                                <button onClick={() => setShowRestoreModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icon name="X"/></button>
-                                <div className="text-center mb-6">
-                                    <div className="inline-flex p-3 bg-indigo-100 text-indigo-600 rounded-full mb-3"><Icon name="DownloadCloud" size={24}/></div>
-                                    <h2 className="text-xl font-bold">Restauration Cloud</h2>
-                                    <p className="text-slate-500 text-sm mt-2">Pour synchroniser cet appareil, entrez le Token Dropbox de l'administrateur.</p>
-                                </div>
-                                <input 
-                                    type="password" 
-                                    placeholder="Token Dropbox (sl.BHz...)" 
-                                    className="w-full p-3 border rounded-xl mb-4 text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-500" 
-                                    value={restoreToken} 
-                                    onChange={e => setRestoreToken(e.target.value)} 
-                                />
-                                <button 
-                                    onClick={handleFirstConnection} 
-                                    className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-                                    disabled={syncStatus === 'working'}
-                                >
-                                    {syncStatus === 'working' ? <Icon name="Loader2" className="animate-spin"/> : <Icon name="CheckCircle"/>}
-                                    Valider et Restaurer
-                                </button>
+                    {/* MODAL CONFIG (RESTAURATION) - PAS UTILE ICI CAR REDONDANT AVEC CELUI DU LOGIN MAIS GARDE POUR LES CAS SPECIAUX */}
+                    {showConfigModal && (
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full animate-fade">
+                                <h2 className="text-xl font-bold mb-2">Configuration Requise</h2>
+                                <p className="text-slate-500 text-sm mb-6">Entrez le Token Dropbox fourni par votre administrateur.</p>
+                                <input type="password" placeholder="Token Dropbox..." className="w-full p-3 border rounded-xl mb-4 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500" value={dbxConfig.token} onChange={e => setDbxConfig({...dbxConfig, token: e.target.value})} />
+                                <button onClick={() => { if(dbxConfig.token) { setShowConfigModal(false); loadCloudDatabase(); } }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Valider</button>
                             </div>
                         </div>
                     )}
