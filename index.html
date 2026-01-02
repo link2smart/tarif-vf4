@@ -1174,7 +1174,16 @@
                                                         <input value={authCode} onChange={e => setAuthCode(e.target.value)} className="flex-1 p-2 border rounded-lg text-xs" placeholder="2. Coller le Code"/>
                                                         <button onClick={handleExchangeCode} disabled={syncStatus === 'working'} className="bg-green-600 text-white px-3 rounded-lg hover:bg-green-700 font-bold text-xs">Valider</button>
                                                     </div>
-                                                    {dbxConfig.refreshToken && <div className="mt-2 text-[10px] text-green-600 font-bold text-center">✅ Token Permanent Actif</div>}
+                                                    {dbxConfig.refreshToken && (
+                                                        <div className="mt-3 bg-white p-2 rounded border border-green-200">
+                                                            <div className="text-[10px] text-green-600 font-bold mb-1">✅ Token Permanent Actif</div>
+                                                            <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">REFRESH TOKEN (A COPIER DANS LE CODE)</label>
+                                                            <div className="flex items-center gap-2">
+                                                                <input readOnly value={dbxConfig.refreshToken} className="flex-1 p-1 bg-slate-50 border border-slate-200 rounded text-[10px] font-mono text-slate-500 select-all" onClick={e => e.target.select()}/>
+                                                                <button onClick={() => { navigator.clipboard.writeText(dbxConfig.refreshToken); alert("Copié !"); }} className="p-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-500" title="Copier"><Icon name="Copy" size={12}/></button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="grid gap-1"><label className="text-[10px] font-bold uppercase text-slate-400">Clé Gemini</label><input type="password" value={dbxConfig.geminiKey} onChange={e => setDbxConfig({...dbxConfig, geminiKey: e.target.value})} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono" /></div>
